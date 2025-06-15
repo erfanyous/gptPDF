@@ -19,6 +19,5 @@
 
 1. **Download or Clone the Repo**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/gptPDF.git
-   cd gptPDF
+   git clone https://github.com/AlamSirji/gptPDF.git
    ```
