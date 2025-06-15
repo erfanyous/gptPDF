@@ -45,7 +45,7 @@
    ## 📸 Screenshots
 
     <p float="left">
-    <img src="assets/screenshot_DownloadPDFBtn.png" width="300" />
+    <img src="assets/Screenshot_DownloadPDFBtn.png" width="300" />
     <img src="assets/Screenshot_Colors.png" width="300" />
     <img src="assets/Screenshot_Codeblock.png" width="300" />
     <img src="assets/Screenshot_Table.png" width="300" />
