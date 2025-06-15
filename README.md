@@ -17,7 +17,7 @@
 
 ## 🧩 Installation
 
-1. **Download or Clone the Repo**
+1. **Clone the Repo**
 
    ```bash
    git clone https://github.com/AlamSirji/gptPDF.git
@@ -41,6 +41,11 @@
    - Choose your font size and click "Export to PDF"
 
    ***
+   
+1. **Download from Assets**
+
+   - Navigate to https://github.com/AlamSirji/gptPDF/releases/tag/v1.0.0
+   - Download from Assets and follow the point 2 to 4 from Installation guide mentioned above
 
    ## 📸 Screenshots
 
@@ -49,8 +54,4 @@
     <img src="assets/Screenshot_Colors.png" width="300" />
     <img src="assets/Screenshot_Codeblock.png" width="300" />
     <img src="assets/Screenshot_Table.png" width="300" />
-    </p>
-
-    ## Download via Assets
-   - Navigate to https://github.com/AlamSirji/gptPDF/releases/tag/v1.0.0
-   - Download from Assets and follow the point 2 to 4 from Installation guide mentioned above
+    </p>   
