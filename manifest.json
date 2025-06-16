@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Q&A to PDF",
-  "version": "1.0",
+  "version": "1.0.1",
   "description": "Save ChatGPT Q&A as a PDF",
-  "permissions": ["scripting", "activeTab"],
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -15,9 +18,15 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://chat.openai.com/*"],
-      "js": ["content.js"]
+      "matches": [
+        "*://chat.openai.com/*"
+      ],
+      "js": [
+        "content.js"
+      ]
     }
   ],
-  "host_permissions": ["*://chat.openai.com/*"]
+  "host_permissions": [
+    "*://chat.openai.com/*"
+  ]
 }
