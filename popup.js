@@ -33,7 +33,7 @@ document.getElementById("download").addEventListener("click", async () => {
     args: [filename, fontSize],
     func: (filename, fontSize) => {
       const container = document.createElement("div");
-      container.style.padding = "20px";
+      container.style.padding = "5px";
       container.style.fontFamily = "Arial, sans-serif";
       container.style.fontSize = fontSize;
       container.style.lineHeight = "1.6";
