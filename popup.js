@@ -38,9 +38,10 @@ document.getElementById("download").addEventListener("click", async () => {
     target: { tabId: tab.id },
     args: [filename, fontSize],
     func: (filename, fontSize) => {
-      // Final Bidi Handling: Set base direction on blocks
-      const setBaseDirection = (element) => {
+      // Final, Refined Bidi Handling Algorithm
+      const advancedBidiHandling = (element) => {
         const blocks = element.querySelectorAll('p, div, li');
+
         blocks.forEach(block => {
             if (block.closest('pre, .katex')) return;
 
@@ -50,7 +51,41 @@ document.getElementById("download").addEventListener("click", async () => {
 
             if (rtlCount > ltrCount) {
                 block.dir = 'rtl';
-                block.style.textAlign = 'right';
+
+                // Refined regex does NOT include whitespace
+                const ltrRegexGlobal = /[a-zA-Z0-9\.,\(\)\\\/\[\]\{\}\-=_+*&^%$#@!~`'":;<>?|]+/g;
+                const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null, false);
+                const nodesToProcess = [];
+                let node;
+                while(node = walker.nextNode()) {
+                    if (node.parentElement.closest('script, style, pre, .katex')) continue;
+                    nodesToProcess.push(node);
+                }
+
+                nodesToProcess.forEach(textNode => {
+                    const text = textNode.textContent;
+                    const matches = [...text.matchAll(ltrRegexGlobal)];
+                    if (matches.length === 0) return;
+
+                    const fragment = document.createDocumentFragment();
+                    let lastIndex = 0;
+                    matches.forEach(match => {
+                        const ltrText = match[0];
+                        const index = match.index;
+                        if (index > lastIndex) {
+                            fragment.appendChild(document.createTextNode(text.substring(lastIndex, index)));
+                        }
+                        const span = document.createElement('span');
+                        span.dir = 'ltr';
+                        span.textContent = ltrText;
+                        fragment.appendChild(span);
+                        lastIndex = index + ltrText.length;
+                    });
+                    if (lastIndex < text.length) {
+                        fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+                    }
+                    textNode.parentNode.replaceChild(fragment, textNode);
+                });
             }
         });
       };
@@ -130,8 +165,8 @@ document.getElementById("download").addEventListener("click", async () => {
 
       document.body.appendChild(container);
 
-      // 2. Apply Bidi Handling BEFORE rendering
-      setBaseDirection(container);
+      // 2. Apply final Bidi Handling BEFORE rendering
+      advancedBidiHandling(container);
 
       // 3. Render Math formulas
       renderMathInElement(container, {
