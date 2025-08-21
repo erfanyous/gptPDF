@@ -31,6 +31,7 @@ document.getElementById("download").addEventListener("click", async () => {
       "libs/katex.min.js",
       "libs/auto-render.min.js",
       "libs/highlight.min.js",
+      "libs/unicode.bidirectional.js",
     ],
   });
 
@@ -38,58 +39,24 @@ document.getElementById("download").addEventListener("click", async () => {
     target: { tabId: tab.id },
     args: [filename, fontSize],
     func: (filename, fontSize) => {
-      // Final Bidi Handling Algorithm
-      const advancedBidiHandling = (element) => {
-        const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF]/;
-        const ltrRegex = /[a-zA-Z]/;
+      // Bidi handling using the external library
+      const applyBidiLibrary = (element) => {
+        const { resolve, reorder, a } = window.UnicodeBidirectional;
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        const nodesToProcess = [];
+        while(node = walker.nextNode()) {
+            if (node.parentElement.closest('script, style, pre, .katex')) continue;
+            nodesToProcess.push(node);
+        }
 
-        const blocks = element.querySelectorAll('p, div, li');
-
-        blocks.forEach(block => {
-            if (block.closest('pre, .katex')) return;
-
-            const text = block.textContent || '';
-            const rtlCount = (text.match(/[\u0590-\u05FF\u0600-\u06FF]/g) || []).length;
-            const ltrCount = (text.match(/[a-zA-Z]/g) || []).length;
-
-            if (rtlCount > ltrCount) {
-                block.dir = 'rtl';
-
-                // Wrap LTR exceptions
-                const ltrRegexGlobal = /[a-zA-Z0-9\.,\s\(\)\\\/\[\]\{\}\-=_+*&^%$#@!~`'":;<>?|]+/g;
-                const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null, false);
-                const nodesToProcess = [];
-                let node;
-                while(node = walker.nextNode()) nodesToProcess.push(node);
-
-                nodesToProcess.forEach(textNode => {
-                    if (textNode.parentElement.closest('script, style, pre, .katex')) return;
-                    const text = textNode.textContent;
-                    const matches = [...text.matchAll(ltrRegexGlobal)];
-                    if (matches.length === 0) return;
-
-                    const fragment = document.createDocumentFragment();
-                    let lastIndex = 0;
-                    matches.forEach(match => {
-                        const ltrText = match[0];
-                        if (ltrText.trim() === '') return;
-
-                        const index = match.index;
-                        if (index > lastIndex) {
-                            fragment.appendChild(document.createTextNode(text.substring(lastIndex, index)));
-                        }
-                        const span = document.createElement('span');
-                        span.dir = 'ltr';
-                        span.textContent = ltrText;
-                        fragment.appendChild(span);
-                        lastIndex = index + ltrText.length;
-                    });
-                    if (lastIndex < text.length) {
-                        fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-                    }
-                    textNode.parentNode.replaceChild(fragment, textNode);
-                });
-            }
+        nodesToProcess.forEach(node => {
+            const text = node.textContent;
+            const codepoints = [...text].map(c => c.codePointAt(0));
+            const levels = resolve(codepoints, 0, true); // true for automatic paragraph level detection
+            const reorderedCodepoints = reorder(codepoints, levels);
+            const reorderedText = String.fromCodePoint(...reorderedCodepoints);
+            node.textContent = reorderedText;
         });
       };
 
@@ -97,7 +64,7 @@ document.getElementById("download").addEventListener("click", async () => {
       const stylePdfContent = (container) => {
         container.style.fontFamily = "Georgia, 'Times New Roman', serif";
         container.style.fontSize = fontSize;
-        container.style.lineHeight = "1.8"; // Increased line height
+        container.style.lineHeight = "1.8";
         container
           .querySelectorAll("button, .copy-button, .edit-button, [aria-label='Copy code']")
           .forEach((el) => el.remove());
@@ -168,8 +135,8 @@ document.getElementById("download").addEventListener("click", async () => {
 
       document.body.appendChild(container);
 
-      // 2. Apply final Bidi Handling BEFORE rendering
-      advancedBidiHandling(container);
+      // 2. Apply Bidi reordering using the library
+      applyBidiLibrary(container);
 
       // 3. Render Math formulas
       renderMathInElement(container, {
