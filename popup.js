@@ -32,138 +32,216 @@ document.getElementById("download").addEventListener("click", async () => {
     target: { tabId: tab.id },
     args: [filename, fontSize],
     func: (filename, fontSize) => {
-      const container = document.createElement("div");
-      container.style.padding = "5px";
-      container.style.fontFamily = "Arial, sans-serif";
-      container.style.fontSize = fontSize;
-      container.style.lineHeight = "1.6";
+      const loadScripts = () => {
+        return new Promise((resolve) => {
+          const loadScript = (src, onload) => {
+            const script = document.createElement("script");
+            script.src = src;
+            script.onload = onload;
+            document.head.appendChild(script);
+          };
 
-      const userMessages = document.querySelectorAll(
-        ".whitespace-pre-wrap:not(.dark\\:whitespace-pre-wrap)"
-      );
-      const botResponses = document.querySelectorAll(
-        ".markdown.prose.w-full.break-words.dark\\:prose-invert"
-      );
+          // Load KaTeX CSS
+          const katexCSS = document.createElement("link");
+          katexCSS.rel = "stylesheet";
+          katexCSS.href =
+            "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
+          document.head.appendChild(katexCSS);
 
-      const cleanHTML = (html) => {
-        const temp = document.createElement("div");
-        temp.innerHTML = html;
+          // Load highlight.js CSS
+          const hljsCSS = document.createElement("link");
+          hljsCSS.rel = "stylesheet";
+          hljsCSS.href =
+            "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css";
+          document.head.appendChild(hljsCSS);
 
-        // Remove unwanted UI elements like buttons or copy/edit icons
-        temp
-          .querySelectorAll(
-            "button, .copy-button, .edit-button, [aria-label='Copy code']"
-          )
-          .forEach((el) => el.remove());
-
-        temp.querySelectorAll("*").forEach((el) => {
-          el.removeAttribute("class");
-          el.removeAttribute("style");
-
-          // Flatten headings
-          if (/^H[1-6]$/.test(el.tagName)) {
-            const div = document.createElement("div");
-            div.innerHTML = el.innerHTML;
-            div.style.fontWeight = "normal";
-            div.style.fontSize = fontSize;
-            el.replaceWith(div);
-          }
-
-          // Default style
-          el.style.fontWeight = "normal";
-          el.style.fontSize = fontSize;
+          // Load scripts sequentially
+          loadScript(
+            "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js",
+            () => {
+              loadScript(
+                "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js",
+                () => {
+                  loadScript(
+                    "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js",
+                    resolve
+                  );
+                }
+              );
+            }
+          );
         });
-
-        // // Replace <strong> and <b> with span
-        // temp.querySelectorAll("b, strong").forEach((el) => {
-        //   const span = document.createElement("span");
-        //   span.innerHTML = el.innerHTML;
-        //   span.style.fontWeight = "normal";
-        //   span.style.fontSize = fontSize;
-        //   el.replaceWith(span);
-        // });
-
-        // Style <pre> and <code> blocks
-        temp.querySelectorAll("pre, code").forEach((el) => {
-          el.style.color = "blue";
-          // el.style.padding = "10px";
-          // el.style.borderRadius = "4px";
-          // el.style.border = "1px solid #ddd";
-          // el.style.display = "block";
-          // el.style.fontFamily = "monospace";
-          // el.style.whiteSpace = "pre-wrap";
-          // el.style.wordBreak = "break-word";
-          // el.style.fontSize = "12pt";
-        });
-
-        // beatify tables with CSS and adds border
-        temp.querySelectorAll("table").forEach((el) => {
-          el.style.width = "100%";
-          el.style.borderCollapse = "collapse";
-          el.style.marginBottom = "20px";
-          el.querySelectorAll("th, td").forEach((cell) => {
-            cell.style.border = "1px solid #ddd";
-            cell.style.padding = "8px";
-            cell.style.textAlign = "left";
-          });
-          el.querySelectorAll("th").forEach((th) => {
-            th.style.backgroundColor = "#f2f2f2";
-            th.style.fontWeight = "bold";
-          });
-        });
-
-        return temp.innerHTML;
       };
 
-      const count = Math.min(userMessages.length, botResponses.length);
-      for (let i = 0; i < count; i++) {
-        const qWrapper = document.createElement("div");
-        qWrapper.style.margin = "20px 0";
-        qWrapper.style.color = "red";
+      loadScripts().then(() => {
+        const container = document.createElement("div");
+        container.style.padding = "5px";
+        container.style.fontFamily = "Arial, sans-serif";
+        container.style.fontSize = fontSize;
+        container.style.lineHeight = "1.6";
 
-        const qPrefix = document.createElement("span");
-        qPrefix.textContent = `Q${i + 1}: `;
-        qPrefix.style.fontWeight = "bold";
-        qPrefix.style.fontSize = fontSize;
+        const userMessages = document.querySelectorAll(
+          ".whitespace-pre-wrap:not(.dark\\:whitespace-pre-wrap)"
+        );
+        const botResponses = document.querySelectorAll(
+          ".markdown.prose.w-full.break-words.dark\\:prose-invert"
+        );
 
-        const qContent = document.createElement("span");
-        qContent.innerHTML = cleanHTML(userMessages[i].innerHTML);
-        qContent.style.fontSize = fontSize;
+        const isRTL = (text) => {
+          const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF]/;
+          return rtlRegex.test(text);
+        };
 
-        qWrapper.appendChild(qPrefix);
-        qWrapper.appendChild(qContent);
-        container.appendChild(qWrapper);
+        const cleanHTML = (html) => {
+          const temp = document.createElement("div");
+          temp.innerHTML = html;
 
-        const aWrapper = document.createElement("div");
-        aWrapper.style.margin = "10px 0 24px 0";
-        aWrapper.style.color = "black";
-        aWrapper.style.fontSize = fontSize;
+          // Remove unwanted UI elements
+          temp
+            .querySelectorAll(
+              "button, .copy-button, .edit-button, [aria-label='Copy code']"
+            )
+            .forEach((el) => el.remove());
 
-        const aContent = document.createElement("span");
-        aContent.innerHTML = cleanHTML(botResponses[i].innerHTML);
-        aContent.style.fontSize = fontSize;
+          // Ensure code blocks are structured for highlight.js
+          temp.querySelectorAll("pre").forEach((pre) => {
+            if (!pre.querySelector("code")) {
+              pre.innerHTML = `<code>${pre.innerHTML}</code>`;
+            }
+          });
 
-        aWrapper.appendChild(aContent);
-        container.appendChild(aWrapper);
-      }
+          // Clean all other elements
+          temp.querySelectorAll("*").forEach((el) => {
+            if (el.closest("pre")) {
+              // Inside code blocks, we let highlight.js handle styling
+              el.removeAttribute("style");
+            } else {
+              el.removeAttribute("class");
+              el.removeAttribute("style");
 
-      document.body.appendChild(container);
+              if (/^H[1-6]$/.test(el.tagName)) {
+                const div = document.createElement("div");
+                div.innerHTML = el.innerHTML;
+                div.style.fontWeight = "normal";
+                div.style.fontSize = fontSize;
+                el.replaceWith(div);
+              }
 
-      html2pdf()
-        .set({
-          margin: 0.5,
-          filename: filename,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-        })
-        .from(container)
-        .save()
-        .then(() => {
-          container.remove();
-          chrome.runtime.sendMessage({ type: "pdfComplete" });
+              el.style.fontWeight = "normal";
+              el.style.fontSize = fontSize;
+            }
+          });
+
+          // Style tables
+          temp.querySelectorAll("table").forEach((el) => {
+            el.style.width = "100%";
+            el.style.borderCollapse = "collapse";
+            el.style.marginBottom = "20px";
+
+            // Set basic cell styles first
+            el.querySelectorAll("th, td").forEach((cell) => {
+              cell.style.border = "1px solid #ddd";
+              cell.style.padding = "8px";
+              cell.style.textAlign = "left";
+            });
+
+            // Style header cells
+            el.querySelectorAll("th").forEach((th) => {
+              th.style.backgroundColor = "#4CAF50";
+              th.style.color = "white";
+              th.style.fontWeight = "bold";
+            });
+
+            // Style body rows with alternating colors
+            const bodyRows = Array.from(el.querySelectorAll("tr")).filter(
+              (row) => !row.querySelector("th")
+            );
+            bodyRows.forEach((tr, index) => {
+              if (index % 2 === 1) {
+                // Apply to even rows
+                tr.style.backgroundColor = "#f2f2f2";
+              }
+            });
+          });
+
+          return temp.innerHTML;
+        };
+
+        const count = Math.min(userMessages.length, botResponses.length);
+        for (let i = 0; i < count; i++) {
+          const qWrapper = document.createElement("div");
+          qWrapper.style.margin = "20px 0";
+          qWrapper.style.color = "red";
+
+          if (isRTL(userMessages[i].textContent)) {
+            qWrapper.dir = "rtl";
+            qWrapper.style.textAlign = "right";
+          }
+
+          const qPrefix = document.createElement("span");
+          qPrefix.textContent = `Q${i + 1}: `;
+          qPrefix.style.fontWeight = "bold";
+          qPrefix.style.fontSize = fontSize;
+
+          const qContent = document.createElement("span");
+          qContent.innerHTML = cleanHTML(userMessages[i].innerHTML);
+          qContent.style.fontSize = fontSize;
+
+          qWrapper.appendChild(qPrefix);
+          qWrapper.appendChild(qContent);
+          container.appendChild(qWrapper);
+
+          const aWrapper = document.createElement("div");
+          aWrapper.style.margin = "10px 0 24px 0";
+          aWrapper.style.color = "black";
+          aWrapper.style.fontSize = fontSize;
+
+          if (isRTL(botResponses[i].textContent)) {
+            aWrapper.dir = "rtl";
+            aWrapper.style.textAlign = "right";
+          }
+
+          const aContent = document.createElement("span");
+          aContent.innerHTML = cleanHTML(botResponses[i].innerHTML);
+          aContent.style.fontSize = fontSize;
+
+          aWrapper.appendChild(aContent);
+          container.appendChild(aWrapper);
+        }
+
+        document.body.appendChild(container);
+
+        // Render math
+        renderMathInElement(container, {
+          delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "\\[", right: "\\]", display: true },
+            { left: "$", right: "$", display: false },
+            { left: "\\(", right: "\\)", display: false },
+          ],
         });
+
+        // Highlight code
+        container.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+
+        html2pdf()
+          .set({
+            margin: 0.5,
+            filename: filename,
+            image: { type: "jpeg", quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+            pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+          })
+          .from(container)
+          .save()
+          .then(() => {
+            container.remove();
+            chrome.runtime.sendMessage({ type: "pdfComplete" });
+          });
+      });
     },
   });
 
