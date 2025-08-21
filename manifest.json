@@ -27,8 +27,6 @@
     }
   ],
   "host_permissions": [
-    "*://chat.openai.com/*",
-    "https://cdn.jsdelivr.net/*",
-    "https://cdnjs.cloudflare.com/*"
+    "*://chat.openai.com/*"
   ]
 }
