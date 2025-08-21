@@ -4,7 +4,6 @@ document.getElementById("download").addEventListener("click", async () => {
 
   const fontSize = document.getElementById("fontSize").value;
 
-  // Ask for filename
   let filename = prompt(
     "Enter filename for the PDF (without .pdf):",
     "chatgpt_conversation"
@@ -15,19 +14,16 @@ document.getElementById("download").addEventListener("click", async () => {
   }
   filename = filename.trim() + ".pdf";
 
-  // Show progress
   button.disabled = true;
   status.textContent = "Generating PDF...";
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  // 1. Inject CSS files
   await chrome.scripting.insertCSS({
     target: { tabId: tab.id },
-    files: ["libs/katex.min.css", "libs/default.min.css"],
+    files: ["libs/katex.min.css", "libs/default.min.css", "libs/code-font-override.css"],
   });
 
-  // 2. Inject JS library files
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     files: [
@@ -38,16 +34,88 @@ document.getElementById("download").addEventListener("click", async () => {
     ],
   });
 
-  // 3. Inject the main PDF generation logic
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     args: [filename, fontSize],
     func: (filename, fontSize) => {
+      // Helper function to check for RTL text
+      const isRTL = (text) => {
+        const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF]/;
+        return rtlRegex.test(text);
+      };
+
+      // Helper function to style the final content before PDF generation
+      const stylePdfContent = (container) => {
+        // Apply base font styles
+        container.style.fontFamily = "Tahoma, Arial, sans-serif";
+        container.style.fontSize = fontSize;
+        container.style.lineHeight = "1.6";
+
+        // Remove unwanted UI elements that might have been picked up
+        container
+          .querySelectorAll(
+            "button, .copy-button, .edit-button, [aria-label='Copy code']"
+          )
+          .forEach((el) => el.remove());
+
+        // General styling for elements, avoiding math and code blocks
+        container.querySelectorAll("*").forEach((el) => {
+          if (el.closest("pre, .katex")) {
+            // Don't apply general styles to code or math
+            return;
+          }
+
+          el.style.fontWeight = "normal";
+          el.style.fontSize = fontSize;
+
+          // Flatten headings
+          if (/^H[1-6]$/.test(el.tagName)) {
+            const div = document.createElement("div");
+            div.innerHTML = el.innerHTML;
+            el.replaceWith(div);
+          }
+        });
+
+        // Granular RTL styling
+        container.querySelectorAll('p, div, li').forEach(block => {
+            if (block.closest('pre, .katex')) {
+                return;
+            }
+            if (isRTL(block.textContent)) {
+                block.style.direction = 'rtl';
+                block.style.textAlign = 'right';
+            }
+        });
+
+        // Style tables
+        container.querySelectorAll("table").forEach((el) => {
+          el.style.width = "100%";
+          el.style.borderCollapse = "collapse";
+          el.style.marginBottom = "20px";
+          el.querySelectorAll("th, td").forEach((cell) => {
+            cell.style.border = "1px solid #ddd";
+            cell.style.padding = "8px";
+            cell.style.textAlign = "left";
+          });
+          el.querySelectorAll("th").forEach((th) => {
+            th.style.backgroundColor = "#4CAF50";
+            th.style.color = "white";
+            th.style.fontWeight = "bold";
+          });
+          const bodyRows = Array.from(el.querySelectorAll("tr")).filter(
+            (row) => !row.querySelector("th")
+          );
+          bodyRows.forEach((tr, index) => {
+            if (index % 2 === 1) {
+              tr.style.backgroundColor = "#f2f2f2";
+            }
+          });
+        });
+      };
+
+      // 1. Create a container and populate it with RAW HTML from the page
       const container = document.createElement("div");
       container.style.padding = "5px";
-      container.style.fontFamily = "Arial, sans-serif";
-      container.style.fontSize = fontSize;
-      container.style.lineHeight = "1.6";
 
       const userMessages = document.querySelectorAll(
         ".whitespace-pre-wrap:not(.dark\\:whitespace-pre-wrap)"
@@ -56,131 +124,33 @@ document.getElementById("download").addEventListener("click", async () => {
         ".markdown.prose.w-full.break-words.dark\\:prose-invert"
       );
 
-      const isRTL = (text) => {
-        const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF]/;
-        return rtlRegex.test(text);
-      };
-
-      const cleanHTML = (html) => {
-        const temp = document.createElement("div");
-        temp.innerHTML = html;
-
-        // Remove unwanted UI elements
-        temp
-          .querySelectorAll(
-            "button, .copy-button, .edit-button, [aria-label='Copy code']"
-          )
-          .forEach((el) => el.remove());
-
-        // Ensure code blocks are structured for highlight.js
-        temp.querySelectorAll("pre").forEach((pre) => {
-          if (!pre.querySelector("code")) {
-            pre.innerHTML = `<code>${pre.innerHTML}</code>`;
-          }
-        });
-
-        // Clean all other elements
-        temp.querySelectorAll("*").forEach((el) => {
-          if (el.closest("pre")) {
-            // Inside code blocks, we let highlight.js handle styling
-            el.removeAttribute("style");
-          } else {
-            el.removeAttribute("class");
-            el.removeAttribute("style");
-
-            if (/^H[1-6]$/.test(el.tagName)) {
-              const div = document.createElement("div");
-              div.innerHTML = el.innerHTML;
-              div.style.fontWeight = "normal";
-              div.style.fontSize = fontSize;
-              el.replaceWith(div);
-            }
-
-            el.style.fontWeight = "normal";
-            el.style.fontSize = fontSize;
-          }
-        });
-
-        // Style tables
-        temp.querySelectorAll("table").forEach((el) => {
-          el.style.width = "100%";
-          el.style.borderCollapse = "collapse";
-          el.style.marginBottom = "20px";
-
-          // Set basic cell styles first
-          el.querySelectorAll("th, td").forEach((cell) => {
-            cell.style.border = "1px solid #ddd";
-            cell.style.padding = "8px";
-            cell.style.textAlign = "left";
-          });
-
-          // Style header cells
-          el.querySelectorAll("th").forEach((th) => {
-            th.style.backgroundColor = "#4CAF50";
-            th.style.color = "white";
-            th.style.fontWeight = "bold";
-          });
-
-          // Style body rows with alternating colors
-          const bodyRows = Array.from(el.querySelectorAll("tr")).filter(
-            (row) => !row.querySelector("th")
-          );
-          bodyRows.forEach((tr, index) => {
-            if (index % 2 === 1) {
-              // Apply to even rows
-              tr.style.backgroundColor = "#f2f2f2";
-            }
-          });
-        });
-
-        return temp.innerHTML;
-      };
-
       const count = Math.min(userMessages.length, botResponses.length);
       for (let i = 0; i < count; i++) {
         const qWrapper = document.createElement("div");
         qWrapper.style.margin = "20px 0";
         qWrapper.style.color = "red";
-
-        if (isRTL(userMessages[i].textContent)) {
-          qWrapper.dir = "rtl";
-          qWrapper.style.textAlign = "right";
-        }
-
+        // RTL logic is now handled later
         const qPrefix = document.createElement("span");
         qPrefix.textContent = `Q${i + 1}: `;
         qPrefix.style.fontWeight = "bold";
-        qPrefix.style.fontSize = fontSize;
-
         const qContent = document.createElement("span");
-        qContent.innerHTML = cleanHTML(userMessages[i].innerHTML);
-        qContent.style.fontSize = fontSize;
-
-        qWrapper.appendChild(qPrefix);
-        qWrapper.appendChild(qContent);
+        qContent.innerHTML = userMessages[i].innerHTML;
+        qWrapper.append(qPrefix, qContent);
         container.appendChild(qWrapper);
 
         const aWrapper = document.createElement("div");
         aWrapper.style.margin = "10px 0 24px 0";
         aWrapper.style.color = "black";
-        aWrapper.style.fontSize = fontSize;
-
-        if (isRTL(botResponses[i].textContent)) {
-          aWrapper.dir = "rtl";
-          aWrapper.style.textAlign = "right";
-        }
-
+        // RTL logic is now handled later
         const aContent = document.createElement("span");
-        aContent.innerHTML = cleanHTML(botResponses[i].innerHTML);
-        aContent.style.fontSize = fontSize;
-
+        aContent.innerHTML = botResponses[i].innerHTML;
         aWrapper.appendChild(aContent);
         container.appendChild(aWrapper);
       }
 
       document.body.appendChild(container);
 
-      // Render math
+      // 2. Render Math formulas on the raw HTML
       renderMathInElement(container, {
         delimiters: [
           { left: "$$", right: "$$", display: true },
@@ -188,13 +158,25 @@ document.getElementById("download").addEventListener("click", async () => {
           { left: "$", right: "$", display: false },
           { left: "\\(", right: "\\)", display: false },
         ],
+        trust: true,
       });
 
-      // Highlight code
+      // 3. Highlight Code blocks
       container.querySelectorAll("pre code").forEach((block) => {
+        // Ensure the code tag has the language class if available
+        const pre = block.closest('pre');
+        const langDiv = pre.previousElementSibling;
+        if (langDiv && langDiv.querySelector('span')) {
+            const lang = langDiv.querySelector('span').innerText.toLowerCase();
+            block.classList.add(`language-${lang}`);
+        }
         hljs.highlightElement(block);
       });
 
+      // 4. Apply final styling and cleaning (including RTL)
+      stylePdfContent(container);
+
+      // 5. Generate PDF
       html2pdf()
         .set({
           margin: 0.5,
@@ -213,7 +195,6 @@ document.getElementById("download").addEventListener("click", async () => {
     },
   });
 
-  // Listen for PDF complete signal
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "pdfComplete") {
       button.disabled = false;
