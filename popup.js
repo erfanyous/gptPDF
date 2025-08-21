@@ -38,10 +38,9 @@ document.getElementById("download").addEventListener("click", async () => {
     target: { tabId: tab.id },
     args: [filename, fontSize],
     func: (filename, fontSize) => {
-      // Refined Bidi Handling Algorithm
-      const advancedBidiHandling = (element) => {
+      // Final Bidi Handling: Set base direction on blocks
+      const setBaseDirection = (element) => {
         const blocks = element.querySelectorAll('p, div, li');
-
         blocks.forEach(block => {
             if (block.closest('pre, .katex')) return;
 
@@ -51,41 +50,7 @@ document.getElementById("download").addEventListener("click", async () => {
 
             if (rtlCount > ltrCount) {
                 block.dir = 'rtl';
-
-                // Refined regex to not include whitespace in LTR segments
-                const ltrRegexGlobal = /[a-zA-Z0-9\.,\(\)\\\/\[\]\{\}\-=_+*&^%$#@!~`'":;<>?|]+/g;
-                const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null, false);
-                const nodesToProcess = [];
-                let node;
-                while(node = walker.nextNode()) nodesToProcess.push(node);
-
-                nodesToProcess.forEach(textNode => {
-                    if (textNode.parentElement.closest('script, style, pre, .katex')) return;
-                    const text = textNode.textContent;
-                    const matches = [...text.matchAll(ltrRegexGlobal)];
-                    if (matches.length === 0) return;
-
-                    const fragment = document.createDocumentFragment();
-                    let lastIndex = 0;
-                    matches.forEach(match => {
-                        const ltrText = match[0];
-                        if (ltrText.trim() === '') return;
-
-                        const index = match.index;
-                        if (index > lastIndex) {
-                            fragment.appendChild(document.createTextNode(text.substring(lastIndex, index)));
-                        }
-                        const span = document.createElement('span');
-                        span.dir = 'ltr';
-                        span.textContent = ltrText;
-                        fragment.appendChild(span);
-                        lastIndex = index + ltrText.length;
-                    });
-                    if (lastIndex < text.length) {
-                        fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-                    }
-                    textNode.parentNode.replaceChild(fragment, textNode);
-                });
+                block.style.textAlign = 'right';
             }
         });
       };
@@ -165,8 +130,8 @@ document.getElementById("download").addEventListener("click", async () => {
 
       document.body.appendChild(container);
 
-      // 2. Apply final Bidi Handling BEFORE rendering
-      advancedBidiHandling(container);
+      // 2. Apply Bidi Handling BEFORE rendering
+      setBaseDirection(container);
 
       // 3. Render Math formulas
       renderMathInElement(container, {
