@@ -4,7 +4,6 @@ document.getElementById("download").addEventListener("click", async () => {
 
   const fontSize = document.getElementById("fontSize").value;
 
-  // Ask for filename
   let filename = prompt(
     "Enter filename for the PDF (without .pdf):",
     "chatgpt_conversation"
@@ -15,19 +14,16 @@ document.getElementById("download").addEventListener("click", async () => {
   }
   filename = filename.trim() + ".pdf";
 
-  // Show progress
   button.disabled = true;
   status.textContent = "Generating PDF...";
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  // 1. Inject CSS files
   await chrome.scripting.insertCSS({
     target: { tabId: tab.id },
-    files: ["libs/katex.min.css", "libs/default.min.css"],
+    files: ["libs/katex.min.css", "libs/default.min.css", "libs/code-font-override.css"],
   });
 
-  // 2. Inject JS library files
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     files: [
@@ -38,7 +34,6 @@ document.getElementById("download").addEventListener("click", async () => {
     ],
   });
 
-  // 3. Inject the main PDF generation logic
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     args: [filename, fontSize],
@@ -65,24 +60,20 @@ document.getElementById("download").addEventListener("click", async () => {
         const temp = document.createElement("div");
         temp.innerHTML = html;
 
-        // Remove unwanted UI elements
         temp
           .querySelectorAll(
             "button, .copy-button, .edit-button, [aria-label='Copy code']"
           )
           .forEach((el) => el.remove());
 
-        // Ensure code blocks are structured for highlight.js
         temp.querySelectorAll("pre").forEach((pre) => {
           if (!pre.querySelector("code")) {
             pre.innerHTML = `<code>${pre.innerHTML}</code>`;
           }
         });
 
-        // Clean all other elements
         temp.querySelectorAll("*").forEach((el) => {
           if (el.closest("pre")) {
-            // Inside code blocks, we let highlight.js handle styling
             el.removeAttribute("style");
           } else {
             el.removeAttribute("class");
@@ -101,33 +92,28 @@ document.getElementById("download").addEventListener("click", async () => {
           }
         });
 
-        // Style tables
         temp.querySelectorAll("table").forEach((el) => {
           el.style.width = "100%";
           el.style.borderCollapse = "collapse";
           el.style.marginBottom = "20px";
 
-          // Set basic cell styles first
           el.querySelectorAll("th, td").forEach((cell) => {
             cell.style.border = "1px solid #ddd";
             cell.style.padding = "8px";
             cell.style.textAlign = "left";
           });
 
-          // Style header cells
           el.querySelectorAll("th").forEach((th) => {
             th.style.backgroundColor = "#4CAF50";
             th.style.color = "white";
             th.style.fontWeight = "bold";
           });
 
-          // Style body rows with alternating colors
           const bodyRows = Array.from(el.querySelectorAll("tr")).filter(
             (row) => !row.querySelector("th")
           );
           bodyRows.forEach((tr, index) => {
             if (index % 2 === 1) {
-              // Apply to even rows
               tr.style.backgroundColor = "#f2f2f2";
             }
           });
@@ -180,7 +166,6 @@ document.getElementById("download").addEventListener("click", async () => {
 
       document.body.appendChild(container);
 
-      // Render math
       renderMathInElement(container, {
         delimiters: [
           { left: "$$", right: "$$", display: true },
@@ -188,9 +173,9 @@ document.getElementById("download").addEventListener("click", async () => {
           { left: "$", right: "$", display: false },
           { left: "\\(", right: "\\)", display: false },
         ],
+        trust: true,
       });
 
-      // Highlight code
       container.querySelectorAll("pre code").forEach((block) => {
         hljs.highlightElement(block);
       });
@@ -213,7 +198,6 @@ document.getElementById("download").addEventListener("click", async () => {
     },
   });
 
-  // Listen for PDF complete signal
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "pdfComplete") {
       button.disabled = false;
