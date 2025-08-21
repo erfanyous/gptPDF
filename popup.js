@@ -38,52 +38,66 @@ document.getElementById("download").addEventListener("click", async () => {
     target: { tabId: tab.id },
     args: [filename, fontSize],
     func: (filename, fontSize) => {
-      // Helper function to wrap RTL text segments in spans with dir="rtl"
-      const spanWrapRtl = (element) => {
-        const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF][\u0590-\u05FF\u0600-\u06FF\s]*/g;
-        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        const nodesToProcess = [];
+      // Final Bidi Handling Algorithm
+      const advancedBidiHandling = (element) => {
+        const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF]/;
+        const ltrRegex = /[a-zA-Z]/;
 
-        while (node = walker.nextNode()) {
-            if (node.parentElement.closest('script, style, pre, .katex')) {
-                continue;
+        const blocks = element.querySelectorAll('p, div, li');
+
+        blocks.forEach(block => {
+            if (block.closest('pre, .katex')) return;
+
+            const text = block.textContent || '';
+            const rtlCount = (text.match(/[\u0590-\u05FF\u0600-\u06FF]/g) || []).length;
+            const ltrCount = (text.match(/[a-zA-Z]/g) || []).length;
+
+            if (rtlCount > ltrCount) {
+                block.dir = 'rtl';
+
+                // Wrap LTR exceptions
+                const ltrRegexGlobal = /[a-zA-Z0-9\.,\s\(\)\\\/\[\]\{\}\-=_+*&^%$#@!~`'":;<>?|]+/g;
+                const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null, false);
+                const nodesToProcess = [];
+                let node;
+                while(node = walker.nextNode()) nodesToProcess.push(node);
+
+                nodesToProcess.forEach(textNode => {
+                    if (textNode.parentElement.closest('script, style, pre, .katex')) return;
+                    const text = textNode.textContent;
+                    const matches = [...text.matchAll(ltrRegexGlobal)];
+                    if (matches.length === 0) return;
+
+                    const fragment = document.createDocumentFragment();
+                    let lastIndex = 0;
+                    matches.forEach(match => {
+                        const ltrText = match[0];
+                        if (ltrText.trim() === '') return;
+
+                        const index = match.index;
+                        if (index > lastIndex) {
+                            fragment.appendChild(document.createTextNode(text.substring(lastIndex, index)));
+                        }
+                        const span = document.createElement('span');
+                        span.dir = 'ltr';
+                        span.textContent = ltrText;
+                        fragment.appendChild(span);
+                        lastIndex = index + ltrText.length;
+                    });
+                    if (lastIndex < text.length) {
+                        fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+                    }
+                    textNode.parentNode.replaceChild(fragment, textNode);
+                });
             }
-            nodesToProcess.push(node);
-        }
-
-        nodesToProcess.forEach(node => {
-            const text = node.textContent;
-            const matches = [...text.matchAll(rtlRegex)];
-            if (matches.length === 0) return;
-
-            const fragment = document.createDocumentFragment();
-            let lastIndex = 0;
-            matches.forEach(match => {
-                const rtlText = match[0];
-                const index = match.index;
-                if (index > lastIndex) {
-                    fragment.appendChild(document.createTextNode(text.substring(lastIndex, index)));
-                }
-                const span = document.createElement('span');
-                span.dir = 'rtl';
-                span.textContent = rtlText;
-                fragment.appendChild(span);
-                lastIndex = index + rtlText.length;
-            });
-
-            if (lastIndex < text.length) {
-                fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-            }
-            node.parentNode.replaceChild(fragment, node);
         });
       };
 
       // Helper function to apply final styles after rendering
       const stylePdfContent = (container) => {
-        container.style.fontFamily = "Tahoma, Arial, sans-serif";
+        container.style.fontFamily = "Georgia, 'Times New Roman', serif";
         container.style.fontSize = fontSize;
-        container.style.lineHeight = "1.6";
+        container.style.lineHeight = "1.8"; // Increased line height
         container
           .querySelectorAll("button, .copy-button, .edit-button, [aria-label='Copy code']")
           .forEach((el) => el.remove());
@@ -106,7 +120,6 @@ document.getElementById("download").addEventListener("click", async () => {
           el.querySelectorAll("th, td").forEach((cell) => {
             cell.style.border = "1px solid #ddd";
             cell.style.padding = "8px";
-            cell.style.textAlign = "left";
           });
           el.querySelectorAll("th").forEach((th) => {
             th.style.backgroundColor = "#4CAF50";
@@ -155,8 +168,8 @@ document.getElementById("download").addEventListener("click", async () => {
 
       document.body.appendChild(container);
 
-      // 2. Apply intelligent RTL span wrapping BEFORE rendering
-      spanWrapRtl(container);
+      // 2. Apply final Bidi Handling BEFORE rendering
+      advancedBidiHandling(container);
 
       // 3. Render Math formulas
       renderMathInElement(container, {
