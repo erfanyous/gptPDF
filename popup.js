@@ -21,13 +21,24 @@ document.getElementById("download").addEventListener("click", async () => {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  // Inject html2pdf
-  await chrome.scripting.executeScript({
+  // 1. Inject CSS files
+  await chrome.scripting.insertCSS({
     target: { tabId: tab.id },
-    files: ["html2pdf.bundle.min.js"],
+    files: ["libs/katex.min.css", "libs/default.min.css"],
   });
 
-  // Inject logic to generate the PDF
+  // 2. Inject JS library files
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: [
+      "html2pdf.bundle.min.js",
+      "libs/katex.min.js",
+      "libs/auto-render.min.js",
+      "libs/highlight.min.js",
+    ],
+  });
+
+  // 3. Inject the main PDF generation logic
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     args: [filename, fontSize],
@@ -45,70 +56,80 @@ document.getElementById("download").addEventListener("click", async () => {
         ".markdown.prose.w-full.break-words.dark\\:prose-invert"
       );
 
+      const isRTL = (text) => {
+        const rtlRegex = /[\u0590-\u05FF\u0600-\u06FF]/;
+        return rtlRegex.test(text);
+      };
+
       const cleanHTML = (html) => {
         const temp = document.createElement("div");
         temp.innerHTML = html;
 
-        // Remove unwanted UI elements like buttons or copy/edit icons
+        // Remove unwanted UI elements
         temp
           .querySelectorAll(
             "button, .copy-button, .edit-button, [aria-label='Copy code']"
           )
           .forEach((el) => el.remove());
 
-        temp.querySelectorAll("*").forEach((el) => {
-          el.removeAttribute("class");
-          el.removeAttribute("style");
-
-          // Flatten headings
-          if (/^H[1-6]$/.test(el.tagName)) {
-            const div = document.createElement("div");
-            div.innerHTML = el.innerHTML;
-            div.style.fontWeight = "normal";
-            div.style.fontSize = fontSize;
-            el.replaceWith(div);
+        // Ensure code blocks are structured for highlight.js
+        temp.querySelectorAll("pre").forEach((pre) => {
+          if (!pre.querySelector("code")) {
+            pre.innerHTML = `<code>${pre.innerHTML}</code>`;
           }
-
-          // Default style
-          el.style.fontWeight = "normal";
-          el.style.fontSize = fontSize;
         });
 
-        // // Replace <strong> and <b> with span
-        // temp.querySelectorAll("b, strong").forEach((el) => {
-        //   const span = document.createElement("span");
-        //   span.innerHTML = el.innerHTML;
-        //   span.style.fontWeight = "normal";
-        //   span.style.fontSize = fontSize;
-        //   el.replaceWith(span);
-        // });
+        // Clean all other elements
+        temp.querySelectorAll("*").forEach((el) => {
+          if (el.closest("pre")) {
+            // Inside code blocks, we let highlight.js handle styling
+            el.removeAttribute("style");
+          } else {
+            el.removeAttribute("class");
+            el.removeAttribute("style");
 
-        // Style <pre> and <code> blocks
-        temp.querySelectorAll("pre, code").forEach((el) => {
-          el.style.color = "blue";
-          // el.style.padding = "10px";
-          // el.style.borderRadius = "4px";
-          // el.style.border = "1px solid #ddd";
-          // el.style.display = "block";
-          // el.style.fontFamily = "monospace";
-          // el.style.whiteSpace = "pre-wrap";
-          // el.style.wordBreak = "break-word";
-          // el.style.fontSize = "12pt";
+            if (/^H[1-6]$/.test(el.tagName)) {
+              const div = document.createElement("div");
+              div.innerHTML = el.innerHTML;
+              div.style.fontWeight = "normal";
+              div.style.fontSize = fontSize;
+              el.replaceWith(div);
+            }
+
+            el.style.fontWeight = "normal";
+            el.style.fontSize = fontSize;
+          }
         });
 
-        // beatify tables with CSS and adds border
+        // Style tables
         temp.querySelectorAll("table").forEach((el) => {
           el.style.width = "100%";
           el.style.borderCollapse = "collapse";
           el.style.marginBottom = "20px";
+
+          // Set basic cell styles first
           el.querySelectorAll("th, td").forEach((cell) => {
             cell.style.border = "1px solid #ddd";
             cell.style.padding = "8px";
             cell.style.textAlign = "left";
           });
+
+          // Style header cells
           el.querySelectorAll("th").forEach((th) => {
-            th.style.backgroundColor = "#f2f2f2";
+            th.style.backgroundColor = "#4CAF50";
+            th.style.color = "white";
             th.style.fontWeight = "bold";
+          });
+
+          // Style body rows with alternating colors
+          const bodyRows = Array.from(el.querySelectorAll("tr")).filter(
+            (row) => !row.querySelector("th")
+          );
+          bodyRows.forEach((tr, index) => {
+            if (index % 2 === 1) {
+              // Apply to even rows
+              tr.style.backgroundColor = "#f2f2f2";
+            }
           });
         });
 
@@ -120,6 +141,11 @@ document.getElementById("download").addEventListener("click", async () => {
         const qWrapper = document.createElement("div");
         qWrapper.style.margin = "20px 0";
         qWrapper.style.color = "red";
+
+        if (isRTL(userMessages[i].textContent)) {
+          qWrapper.dir = "rtl";
+          qWrapper.style.textAlign = "right";
+        }
 
         const qPrefix = document.createElement("span");
         qPrefix.textContent = `Q${i + 1}: `;
@@ -139,6 +165,11 @@ document.getElementById("download").addEventListener("click", async () => {
         aWrapper.style.color = "black";
         aWrapper.style.fontSize = fontSize;
 
+        if (isRTL(botResponses[i].textContent)) {
+          aWrapper.dir = "rtl";
+          aWrapper.style.textAlign = "right";
+        }
+
         const aContent = document.createElement("span");
         aContent.innerHTML = cleanHTML(botResponses[i].innerHTML);
         aContent.style.fontSize = fontSize;
@@ -148,6 +179,21 @@ document.getElementById("download").addEventListener("click", async () => {
       }
 
       document.body.appendChild(container);
+
+      // Render math
+      renderMathInElement(container, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "\\[", right: "\\]", display: true },
+          { left: "$", right: "$", display: false },
+          { left: "\\(", right: "\\)", display: false },
+        ],
+      });
+
+      // Highlight code
+      container.querySelectorAll("pre code").forEach((block) => {
+        hljs.highlightElement(block);
+      });
 
       html2pdf()
         .set({
